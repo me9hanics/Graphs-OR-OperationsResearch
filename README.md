@@ -4,3 +4,5 @@ Please, if you use my code, mention my name and work. If you use my work for a r
 
 Pre-print:
 https://arxiv.org/abs/2212.09473
+
+This research will be presented at the XXXV. Hungarian Operations Research Conference in Budapest in June, and will be updated further on.
