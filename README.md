@@ -1,8 +1,10 @@
 # Graphs-OR-Operations_Research
-This is my (Mihaly Peter Hanics) repository to store implementations of algorithms and simulations in both Graph Theory and Operations Research.
-Please, if you use my code, mention my name and work. If you use my work for a research paper, please refer to me, usually each project put up here will be closely connected with a research paper (as long as I find a journal that releases the paper).
+This is a repository by Mihaly Peter *Hanics* to store implementations of algorithms, simulations and calculations, and analysis in the field of both Graph Theory and Operations Research.<br>
+Please, if you use my code, refer to me; even better would be to cite a paper especially if you use my work for a research paper. The works put here are likely projects aim to be papers in journals such as CEJOR and graph theory, combinatorics ones.
+
+### Portfolio compression modelled as minimum cost circulation
+Mapping the most notable portfolio compression model, the conservative compression (as named by D'Errico and Roukny) to a lesser-known problem in graph theory: minimium cost circulation, particularly the maximum volume circulation (all costs equal to -1).<br>
+This research was presented at the XXXV. Hungarian Operations Research Conference in Budapest in June 2023, and is submitted to the CEJOR journal. Thanks to Péter Biró and Tamás Fleiner for supervising this work as my BSc thesis.
 
 Pre-print:
 https://arxiv.org/abs/2212.09473
-
-This research will be presented at the XXXV. Hungarian Operations Research Conference in Budapest in June, and will be updated further on.
