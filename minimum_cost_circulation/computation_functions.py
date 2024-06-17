@@ -23,13 +23,82 @@ Else, we know our graph is minimal cost, and we go to 3).
 """
 
 def create_residual_graph(graph):
+    """
+    Create the residual graph of a graph with its circulation (and capacities).
+
+    Note: if the demand is not stored in the edges, it is assumed to be 0.
+    """
     resG = nx.DiGraph()
+    demand = (graph.edges(data=True)[0]).get('demand', 0)
     for u, v, data in graph.edges(data=True):
         if data['flow'] < data['capacity']:
             resG.add_edge(u, v, capacity=data['capacity'] - data['flow'], cost=data['cost'])
-        if data['flow'] > 0:
+        if data['flow'] > demand: #usually 0
             resG.add_edge(v, u, capacity=data['flow'], cost=-data['cost'])
     return resG
+
+def create_cost_distance_matrix(resG):
+    """
+    Create the distance (from cost) matrix, and its setting edge matrix of a graph.
+
+    This is the used in the Goldberg and Tarjan algorithm on the residual graph(s).
+    """
+    n = resG.number_of_nodes()
+    distance_matrix = np.full((n, n+1), np.inf)
+    distance_matrix[:, 0] = 0
+    settingedge_matrix = np.full((n, n), -np.inf)
+    #Distances (similar to Bellman-Ford)
+    for k in range(n):
+        for u, v, data in resG.edges(data=True):
+            if distance_matrix[u, k] + data['cost'] < distance_matrix[v, k+1]:
+                distance_matrix[v, k+1] = distance_matrix[u, k] + data['cost']
+                settingedge_matrix[v, k] = (u, v)
+
+    return distance_matrix, settingedge_matrix
+
+def find_min_mean_cycle(distance_matrix, settingedge_matrix):
+    """
+    Find the minimum mean cycle in a graph from the distance setting edge matrices.
+
+    This is based on the algorithm of Karp (1972).
+    """
+
+    n = distance_matrix.shape[0]
+    maxdiffs = np.full(n, -np.inf)
+    for v in range(n):
+        for k in range(n):
+            if (distance_matrix[v, n] - distance_matrix[v, k]) / (n+1-k) > maxdiffs[v]:
+                maxdiffs[v] = (distance_matrix[v, n] - distance_matrix[v, k]) / (n+1-k)
+    min_mean_vertex = np.argmin(maxdiffs)
+    min_mean = maxdiffs[min_mean_vertex]
+
+    settingwalk = [settingedge_matrix[min_mean_vertex, k] for k in range(n)]
+    settingwalk.append(settingedge_matrix[min_mean_vertex, n])
+
+    min_mean_cycle = [settingedge_matrix[min_mean_vertex, k] for k in range(n) if settingwalk[k] == settingwalk[-1]]
+    min_mean_cycle_end = len(min_mean_cycle)
+
+    return min_mean, min_mean_cycle
+
+def update_circulation(graph, cycle):
+    """
+    Update the circulation of a graph with a given cycle, with the maximum possible amount.
+
+    The maximum possible amount of flow in the cycle is the minimum residue capacity among the edges in the cycle.
+    Note: this is intended for the residual graph, so the flow is added or subtracted based on the direction of the edge.
+    This is used in the Goldberg and Tarjan algorithm with the minimum mean cycle in each iteration.
+    """
+    #Tau (amount to increase or decrease each flow in the cycle)
+    tau = min([graph.edges[edge]['capacity'] for edge in cycle]) #TODO: check if this is correct
+    #Update the circulation
+    circ_new = graph.copy()
+    for edge in cycle:
+        if edge in graph.edges: #TODO: check if this is correct
+            circ_new.edges[edge]['flow'] += tau
+        else:
+            circ_new.edges[(edge[1], edge[0])]['flow'] -= tau
+
+    return circ_new, tau
 
 def min_mean_cycle_0demand(graph):
     """
@@ -60,50 +129,15 @@ def min_mean_cycle_0demand(graph):
             raise ValueError("Input graph must have 'capacity', 'cost' and 'flow' attributes for each edge")
 
     resG = create_residual_graph(graph)
-    n = resG.number_of_nodes()
-    m = resG.number_of_edges()
-
     #Karp: Nx(N+1) matrix for distances. Initialize with infinities, except for d_0(u)=0
-    distance_matrix = np.full((n, n+1), np.inf)
-    distance_matrix[:, 0] = 0
-    settingedge_matrix = np.full((n, n), -np.inf)
-
-    #Distances (similar to Bellman-Ford)
-    for k in range(n):
-        for u, v, data in resG.edges(data=True):
-            if distance_matrix[u, k] + data['cost'] < distance_matrix[v, k+1]:
-                distance_matrix[v, k+1] = distance_matrix[u, k] + data['cost']
-                settingedge_matrix[v, k] = (u, v)  # storing the edge that set it
-
+    distance_matrix, settingedge_matrix = create_cost_distance_matrix(resG)
     #Minimum mean cycle
-    maxdiffs = np.full(n, -np.inf)
-    for v in range(n):
-        for k in range(n):
-            if (distance_matrix[v, n] - distance_matrix[v, k]) / (n+1-k) > maxdiffs[v]:
-                maxdiffs[v] = (distance_matrix[v, n] - distance_matrix[v, k]) / (n+1-k)
-    min_mean_vertex = np.argmin(maxdiffs)
-    min_mean = maxdiffs[min_mean_vertex]
+    min_mean, min_mean_cycle = find_min_mean_cycle(distance_matrix, settingedge_matrix)
 
     #a)If the minimum mean is less than 0, then we can improve on the cost
     if min_mean < 0:
-        #Minimum mean cycle
-        settingwalk = [settingedge_matrix[min_mean_vertex, k] for k in range(n)]
-        settingwalk.append(settingedge_matrix[min_mean_vertex, n])
-
-        min_mean_cycle = [settingedge_matrix[min_mean_vertex, k] for k in range(n) if settingwalk[k] == settingwalk[-1]]
-        min_mean_cycle_end = len(min_mean_cycle)
-
-        #Tau (amount to increase or decrease each flow in the cycle)
-        tau = min([resG.edges[edge]['capacity'] for edge in min_mean_cycle])
-
-        #Update the circulation
-        circ_new = graph.copy()
-        for edge in min_mean_cycle:
-            if edge in graph.edges:
-                circ_new.edges[edge]['flow'] += tau
-            else:
-                circ_new.edges[(edge[1], edge[0])]['flow'] -= tau
-    else: #b)If the minimum mean is 0: we have a minimal cost circulation
+        circ_new, tau = update_circulation(graph, min_mean_cycle)
+    else:#b)If the minimum mean is 0: we have a minimal cost circulation
         circ_new = graph.copy()
         tau = 0
 
